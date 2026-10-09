@@ -1,15 +1,18 @@
 {
   "expo": {
-    "name": "focus-and-break",
+    "name": "Focus & Break",
     "slug": "focus-and-break",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "scheme": "focusbreak",
+    "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false,
+      "bundleIdentifier": "com.focusbreak.app"
     },
     "android": {
+      "package": "com.focusbreak.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -20,6 +23,15 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "color": "#1B7F5C"
+        }
+      ]
+    ]
   }
 }
