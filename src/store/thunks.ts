@@ -64,6 +64,17 @@ export const abandonPhase = createAsyncThunk<void, void, ThunkConfig>('timer/aba
   dispatch(endPhase());
 });
 
+/**
+ * Run once on launch, after the persisted timer is restored. A phase whose end time
+ * passed while the app was closed is finished now, so it still counts in stats.
+ */
+export const reconcileTimer = createAsyncThunk<void, void, ThunkConfig>('timer/reconcile', async (_, { dispatch, getState }) => {
+  const { phase, running, endAt } = getState().timer;
+  if (!running || endAt === null || endAt > Date.now()) return;
+  if (phase === 'focus') await dispatch(completeFocus());
+  else if (phase === 'break') await dispatch(completeBreak());
+});
+
 /** Retries sessions that could not be uploaded earlier. */
 export const flushPendingSessions = createAsyncThunk<void, void, ThunkConfig>('stats/flushPending', async (_, { dispatch, getState }) => {
   const pending = getState().stats.pending;

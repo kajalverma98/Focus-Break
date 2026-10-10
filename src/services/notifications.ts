@@ -1,11 +1,27 @@
 import { Platform } from 'react-native';
-import * as Notifications from 'expo-notifications';
+import { isRunningInExpoGo } from 'expo';
+import * as Application from 'expo-application';
+import * as IntentLauncher from 'expo-intent-launcher';
+
+type NotificationsModule = typeof import('expo-notifications');
+
+/**
+ * Expo Go on Android (SDK 53+) throws as soon as expo-notifications is loaded, so the
+ * module is only required elsewhere. In Expo Go on Android every helper below is a no-op;
+ * use a development build to get notifications there.
+ */
+const Notifications: NotificationsModule | null =
+  Platform.OS === 'android' && isRunningInExpoGo()
+    ? null
+    : // eslint-disable-next-line @typescript-eslint/no-require-imports
+      (require('expo-notifications') as NotificationsModule);
 
 const CHANNEL_ID = 'focus-break';
 const DAILY_ID = 'fb-daily-reminder';
-let sessionEndId: string | null = null;
+/** Fixed id so the alert can still be cancelled after the app was closed and reopened. */
+const SESSION_END_ID = 'fb-session-end';
 
-Notifications.setNotificationHandler({
+Notifications?.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true,
     shouldShowList: true,
@@ -15,7 +31,7 @@ Notifications.setNotificationHandler({
 });
 
 export async function setupNotificationChannel(): Promise<void> {
-  if (Platform.OS !== 'android') return;
+  if (!Notifications || Platform.OS !== 'android') return;
   try {
     await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
       name: 'Focus & Break',
@@ -28,6 +44,7 @@ export async function setupNotificationChannel(): Promise<void> {
 }
 
 export async function ensureNotificationPermission(): Promise<boolean> {
+  if (!Notifications) return false;
   try {
     const current = await Notifications.getPermissionsAsync();
     if (current.granted) return true;
@@ -42,10 +59,12 @@ export async function ensureNotificationPermission(): Promise<boolean> {
 /** Schedules a local notification for when the running focus/break phase ends. */
 export async function scheduleSessionEnd(kind: 'focus' | 'break', seconds: number): Promise<void> {
   await cancelSessionEnd();
+  if (!Notifications) return;
   try {
     const ok = await ensureNotificationPermission();
     if (!ok || seconds < 1) return;
-    sessionEndId = await Notifications.scheduleNotificationAsync({
+    await Notifications.scheduleNotificationAsync({
+      identifier: SESSION_END_ID,
       content:
         kind === 'focus'
           ? { title: 'Focus session complete 🎉', body: 'Great work! Time to take a healthy break.' }
@@ -57,21 +76,21 @@ export async function scheduleSessionEnd(kind: 'focus' | 'break', seconds: numbe
       },
     });
   } catch {
-    sessionEndId = null;
+    // Notifications are best-effort.
   }
 }
 
 export async function cancelSessionEnd(): Promise<void> {
-  if (!sessionEndId) return;
+  if (!Notifications) return;
   try {
-    await Notifications.cancelScheduledNotificationAsync(sessionEndId);
+    await Notifications.cancelScheduledNotificationAsync(SESSION_END_ID);
   } catch {
     // ignore
   }
-  sessionEndId = null;
 }
 
 export async function setDailyReminder(enabled: boolean): Promise<boolean> {
+  if (!Notifications) return !enabled;
   try {
     await Notifications.cancelScheduledNotificationAsync(DAILY_ID);
   } catch {
@@ -101,10 +120,29 @@ export async function setDailyReminder(enabled: boolean): Promise<boolean> {
 }
 
 export async function cancelAllNotifications(): Promise<void> {
-  sessionEndId = null;
+  if (!Notifications) return;
   try {
     await Notifications.cancelAllScheduledNotificationsAsync();
   } catch {
     // ignore
+  }
+}
+
+/**
+ * Android 14+ denies SCHEDULE_EXACT_ALARM to new installs, so session-end alerts can
+ * arrive minutes late until the user allows "Alarms & reminders" for the app.
+ */
+export function needsExactAlarmPermission(): boolean {
+  return !!Notifications && Platform.OS === 'android' && Number(Platform.Version) >= 34;
+}
+
+/** Opens the system "Alarms & reminders" screen for this app. */
+export async function openExactAlarmSettings(): Promise<void> {
+  try {
+    await IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.REQUEST_SCHEDULE_EXACT_ALARM, {
+      data: `package:${Application.applicationId}`,
+    });
+  } catch {
+    // Settings screen unavailable on this device; alerts stay best-effort.
   }
 }

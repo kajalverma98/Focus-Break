@@ -1,9 +1,10 @@
-import React, { useEffect, useRef } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { HeroArt } from '../components/HeroArt';
 import { PageDots } from '../components/PageDots';
 import { Screen } from '../components/Screen';
@@ -27,6 +28,7 @@ export default function BreakActivityScreen({ navigation }: Props) {
   const timer = useAppSelector((s) => s.timer);
   const autoStartNext = useAppSelector((s) => s.settings.autoStartNext);
   const leaving = useRef(false);
+  const [confirmEnd, setConfirmEnd] = useState(false);
 
   const activity = getActivity(timer.activityId);
   const onBreak = timer.phase === 'break';
@@ -72,12 +74,7 @@ export default function BreakActivityScreen({ navigation }: Props) {
     goToNextFocus(true);
   };
 
-  const onBack = () => {
-    Alert.alert('End break early?', 'You can go back to work now, or keep resting.', [
-      { text: 'Keep resting', style: 'cancel' },
-      { text: 'Back to work', onPress: backToWork },
-    ]);
-  };
+  const onBack = () => setConfirmEnd(true);
 
   return (
     <Screen scroll>
@@ -122,6 +119,20 @@ export default function BreakActivityScreen({ navigation }: Props) {
         <Button title="Get Another Activity" variant="outline" icon="refresh" onPress={anotherActivity} />
         <Button title="Back to Work" onPress={backToWork} testID="break-back-to-work" />
       </View>
+
+      <ConfirmDialog
+        visible={confirmEnd}
+        icon="cafe-outline"
+        title="End break early?"
+        message="You can go back to work now, or keep resting."
+        confirmLabel="Back to work"
+        cancelLabel="Keep resting"
+        onCancel={() => setConfirmEnd(false)}
+        onConfirm={() => {
+          setConfirmEnd(false);
+          backToWork();
+        }}
+      />
     </Screen>
   );
 }

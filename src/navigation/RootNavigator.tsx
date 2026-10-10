@@ -14,17 +14,25 @@ import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
 import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
 import { useAppSelector } from '../store/hooks';
+import { useTheme } from '../theme';
 import MainTabs from './MainTabs';
 import type { RootStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function RootNavigator() {
+  const { colors } = useTheme();
   const token = useAppSelector((s) => s.auth.token);
   const seenOnboarding = useAppSelector((s) => s.settings.hasSeenOnboarding);
 
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
+        animation: 'slide_from_right',
+        contentStyle: { backgroundColor: colors.background },
+      }}
+    >
       {!seenOnboarding ? (
         <Stack.Screen name="Onboarding" component={OnboardingScreen} />
       ) : !token ? (

@@ -24,8 +24,8 @@ const rootReducer = combineReducers({
   settings: persistReducer({ key: 'settings', storage: AsyncStorage }, settingsReducer),
   theme: persistReducer({ key: 'theme', storage: AsyncStorage }, themeReducer),
   stats: persistReducer({ key: 'stats', storage: AsyncStorage }, statsReducer),
-  // The timer is intentionally not persisted.
-  timer: timerReducer,
+  // Persisted so a running session survives the app being closed (see reconcileTimer).
+  timer: persistReducer({ key: 'timer', storage: AsyncStorage }, timerReducer),
 });
 
 export const store = configureStore({

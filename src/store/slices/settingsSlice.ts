@@ -17,6 +17,8 @@ export interface SettingsState {
   soundId: string;
   haptics: boolean;
   notifications: NotificationPrefs;
+  /** Whether we already asked the user to allow exact alarms (Android 14+). */
+  exactAlarmPrompted: boolean;
 }
 
 const initialState: SettingsState = {
@@ -30,6 +32,7 @@ const initialState: SettingsState = {
   soundId: 'none',
   haptics: true,
   notifications: { sessionAlerts: true, breakReminders: true, dailyReminder: false },
+  exactAlarmPrompted: false,
 };
 
 const settingsSlice = createSlice({
@@ -57,6 +60,9 @@ const settingsSlice = createSlice({
     setNotificationPref(state, action: PayloadAction<{ key: keyof NotificationPrefs; value: boolean }>) {
       state.notifications[action.payload.key] = action.payload.value;
     },
+    markExactAlarmPrompted(state) {
+      state.exactAlarmPrompted = true;
+    },
   },
 });
 
@@ -67,5 +73,6 @@ export const {
   setHaptics,
   setAutoStartNext,
   setNotificationPref,
+  markExactAlarmPrompted,
 } = settingsSlice.actions;
 export default settingsSlice.reducer;

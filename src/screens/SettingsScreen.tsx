@@ -1,9 +1,10 @@
-import React from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { useGetProfileQuery } from '../api/api';
 import { Card } from '../components/Card';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { LeafCorner } from '../components/Leaf';
 import { ListRow } from '../components/ListRow';
 import { Screen } from '../components/Screen';
@@ -27,12 +28,8 @@ export default function SettingsScreen() {
 
   const appearance = mode === 'system' ? 'System default' : mode === 'dark' ? 'Dark mode' : 'Light mode';
 
-  const confirmLogout = () => {
-    Alert.alert('Log out?', 'You can log back in anytime.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Log out', style: 'destructive', onPress: () => dispatch(performLogout()) },
-    ]);
-  };
+  const [confirmingLogout, setConfirmingLogout] = useState(false);
+  const confirmLogout = () => setConfirmingLogout(true);
 
   return (
     <Screen scroll padded={false} edges={['top']}>
@@ -75,6 +72,20 @@ export default function SettingsScreen() {
           </View>
         </Card>
       </View>
+
+      <ConfirmDialog
+        visible={confirmingLogout}
+        icon="log-out-outline"
+        title="Log out?"
+        message="You can log back in anytime."
+        confirmLabel="Log out"
+        destructive
+        onCancel={() => setConfirmingLogout(false)}
+        onConfirm={() => {
+          setConfirmingLogout(false);
+          dispatch(performLogout());
+        }}
+      />
     </Screen>
   );
 }

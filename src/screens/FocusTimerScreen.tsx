@@ -1,9 +1,11 @@
-import React, { useEffect, useRef } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
+import type { NavigationAction } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ProgressRing } from '../components/ProgressRing';
 import { Screen } from '../components/Screen';
 import { ScreenHeader } from '../components/ScreenHeader';
@@ -12,8 +14,14 @@ import { useCountdown } from '../hooks/useCountdown';
 import { useHaptics } from '../hooks/useHaptics';
 import type { RootStackParamList } from '../navigation/types';
 import { pauseAmbient, playAmbient, stopAmbient } from '../services/ambient';
-import { cancelSessionEnd, scheduleSessionEnd } from '../services/notifications';
+import {
+  cancelSessionEnd,
+  needsExactAlarmPermission,
+  openExactAlarmSettings,
+  scheduleSessionEnd,
+} from '../services/notifications';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
+import { markExactAlarmPrompted } from '../store/slices/settingsSlice';
 import { addDistraction, pause, prepareFocus, resume } from '../store/slices/timerSlice';
 import { abandonPhase, beginFocus, completeFocus } from '../store/thunks';
 import { radius } from '../theme';
@@ -32,6 +40,18 @@ export default function FocusTimerScreen({ navigation, route }: Props) {
   const settings = useAppSelector((s) => s.settings);
   const user = useAppSelector((s) => s.auth.user);
   const allowLeave = useRef(false);
+  /** Navigation the user tried while a session was live; set while the confirm dialog is open. */
+  const [pendingLeave, setPendingLeave] = useState<NavigationAction | null>(null);
+  // Ask once (Android 14+) to allow exact alarms so the session-end alert is on time.
+  const [askExactAlarm, setAskExactAlarm] = useState(
+    () => !settings.exactAlarmPrompted && needsExactAlarmPermission(),
+  );
+
+  const closeExactAlarmPrompt = (openSettings: boolean) => {
+    setAskExactAlarm(false);
+    dispatch(markExactAlarmPrompted());
+    if (openSettings) openExactAlarmSettings();
+  };
 
   const focusing = timer.phase === 'focus';
   const running = focusing && timer.running;
@@ -92,20 +112,18 @@ export default function FocusTimerScreen({ navigation, route }: Props) {
     return navigation.addListener('beforeRemove', (e) => {
       if (allowLeave.current || timer.phase !== 'focus') return;
       e.preventDefault();
-      Alert.alert('End this session?', 'Your progress for this session will not be saved.', [
-        { text: 'Keep going', style: 'cancel' },
-        {
-          text: 'End session',
-          style: 'destructive',
-          onPress: async () => {
-            allowLeave.current = true;
-            await dispatch(abandonPhase());
-            navigation.dispatch(e.data.action);
-          },
-        },
-      ]);
+      setPendingLeave(e.data.action);
     });
-  }, [navigation, timer.phase, dispatch]);
+  }, [navigation, timer.phase]);
+
+  const endSession = async () => {
+    const action = pendingLeave;
+    setPendingLeave(null);
+    if (!action) return;
+    allowLeave.current = true;
+    await dispatch(abandonPhase());
+    navigation.dispatch(action);
+  };
 
   const totalMs = timer.totalMs || settings.focusMinutes * 60000;
   const progress = totalMs > 0 ? 1 - remainingMs / totalMs : 0;
@@ -214,6 +232,29 @@ export default function FocusTimerScreen({ navigation, route }: Props) {
           </Pressable>
         </View>
       </View>
+
+      <ConfirmDialog
+        visible={pendingLeave !== null}
+        icon="hourglass-outline"
+        title="End this session?"
+        message="Your progress for this session will not be saved."
+        cancelLabel="Keep going"
+        confirmLabel="End session"
+        destructive
+        onCancel={() => setPendingLeave(null)}
+        onConfirm={endSession}
+      />
+
+      <ConfirmDialog
+        visible={askExactAlarm && pendingLeave === null}
+        icon="alarm-outline"
+        title="Get alerts right on time"
+        message={'Allow "Alarms & reminders" so we can tell you the moment your session ends, even when the app is closed.'}
+        confirmLabel="Open settings"
+        cancelLabel="Not now"
+        onConfirm={() => closeExactAlarmPrompt(true)}
+        onCancel={() => closeExactAlarmPrompt(false)}
+      />
     </Screen>
   );
 }
